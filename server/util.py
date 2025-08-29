@@ -9,14 +9,14 @@ __fuel_types = None
 __transmissions = None
 __data_columns = None
 __model = None
+__scaler = None
 
 def get_estimated_price(brand, year, fuel_type, transmission, km_driven, owner):
-    
-    # Predicts the car price using a structure similar to your real estate project.
-    # It creates a Pandas DataFrame to match the model's expected input format.
-    
+    """
+    Predicts the car price. The 'owner' parameter is now an integer.
+    """
     # Construct the correct one-hot encoded column names from user input
-    brand_col = "brand_" + brand.lower()
+    brand_col = "brand_" + brand
     fuel_col = "fuel_" + fuel_type.lower()
     transmission_col = "transmission_" + transmission.lower()
 
@@ -26,8 +26,9 @@ def get_estimated_price(brand, year, fuel_type, transmission, km_driven, owner):
     # Set the values for the numerical features
     input_df['year'] = year
     input_df['km_driven'] = km_driven
-    input_df['owner'] = owner
 
+    input_df['owner'] = owner
+    
     # For the categorical features, set the corresponding column to 1
     if brand_col in input_df.columns:
         input_df[brand_col] = 1
@@ -36,38 +37,40 @@ def get_estimated_price(brand, year, fuel_type, transmission, km_driven, owner):
     if transmission_col in input_df.columns:
         input_df[transmission_col] = 1
 
-    # Predict the price and convert from log scale using np.exp()
-    # The result is rounded to 2 decimal places
+    # Scale the numerical features before prediction
+    numerical_features = ['year', 'km_driven', 'owner']
+    input_df[numerical_features] = __scaler.transform(input_df[numerical_features])
+
     prediction = __model.predict(input_df)[0]
     return round(prediction, 2)
 
 def load_saved_artifacts():
-
-    # Loads the saved model and column information from their respective files.
-    # This function populates the global variables used by the prediction function.
-    
+    """
+    Loads the saved model, column information, and scaler from their respective files.
+    """
     print("Loading saved artifacts...start")
-    global __data_columns
-    global __brands
-    global __fuel_types
-    global __transmissions
-    global __model
+    global __data_columns, __brands, __fuel_types, __transmissions, __model, __scaler
 
+    # Define paths to artifact files
+    columns_path = "./artifacts/columns.json"
+    scaler_path = "./artifacts/scaler.pickle"
+    model_path = "./artifacts/car_price_prediction.pickle"
+    
     # Load column names from the JSON file
-    with open("./artifacts/columns.json", "r") as f:
+    with open(columns_path, "r") as f:
         data = json.load(f)
         __data_columns = data['data_columns']
-
-        # Dynamically extract unique categories from the column list
         __brands = sorted([col.replace('brand_', '') for col in __data_columns if col.startswith('brand_')])
         __fuel_types = sorted([col.replace('fuel_', '') for col in __data_columns if col.startswith('fuel_')])
-        # Based on the dataset, 'automatic' is the opposite of 'manual'
         __transmissions = ['manual', 'automatic']
 
-    # Load the trained model from the pickle file
-    if __model is None:
-        with open("./artifacts/car_price_prediction.pickle", "rb") as f:
-            __model = pickle.load(f)
+    # Load the scaler
+    with open(scaler_path, "rb") as f:
+        __scaler = pickle.load(f)
+
+    # Load the trained model
+    with open(model_path, "rb") as f:
+        __model = pickle.load(f)
 
     print("Loading saved artifacts...done")
 
@@ -80,5 +83,5 @@ def get_fuel_types():
 def get_transmission_types():
     return __transmissions
 
-# This will run once when the module is imported by app.py
-load_saved_artifacts()
+if __name__ == '__main__':
+    load_saved_artifacts()
